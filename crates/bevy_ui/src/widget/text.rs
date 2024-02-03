@@ -10,7 +10,7 @@ use bevy_ecs::{
 use bevy_math::Vec2;
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render::texture::Image;
-use bevy_sprite::TextureAtlas;
+use bevy_sprite::TextureAtlasLayout;
 use bevy_text::{
     scale_value, BreakLineOn, Font, FontAtlasSets, FontAtlasWarning, Text, TextError,
     TextLayoutInfo, TextMeasureInfo, TextPipeline, TextSettings, YAxisOrientation,
@@ -53,7 +53,13 @@ impl Measure for TextMeasure {
         _available_height: AvailableSpace,
     ) -> Vec2 {
         let x = width.unwrap_or_else(|| match available_width {
-            AvailableSpace::Definite(x) => x.clamp(self.info.min.x, self.info.max.x),
+            AvailableSpace::Definite(x) => {
+                // It is possible for the "min content width" to be larger than
+                // the "max content width" when soft-wrapping right-aligned text
+                // and possibly other situations.
+
+                x.max(self.info.min.x).min(self.info.max.x)
+            }
             AvailableSpace::MinContent => self.info.min.x,
             AvailableSpace::MaxContent => self.info.max.x,
         });
@@ -74,7 +80,7 @@ impl Measure for TextMeasure {
 #[inline]
 fn create_text_measure(
     fonts: &Assets<Font>,
-    scale_factor: f64,
+    scale_factor: f32,
     text: Ref<Text>,
     mut content_size: Mut<ContentSize>,
     mut text_flags: Mut<TextFlags>,
@@ -111,7 +117,7 @@ fn create_text_measure(
 /// color changes. This can be expensive, particularly for large blocks of text, and the [`bypass_change_detection`](bevy_ecs::change_detection::DetectChangesMut::bypass_change_detection)
 /// method should be called when only changing the `Text`'s colors.
 pub fn measure_text_system(
-    mut last_scale_factor: Local<f64>,
+    mut last_scale_factor: Local<f32>,
     fonts: Res<Assets<Font>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     ui_scale: Res<UiScale>,
@@ -127,8 +133,8 @@ pub fn measure_text_system(
     #[allow(clippy::float_cmp)]
     if *last_scale_factor == scale_factor {
         // scale factor unchanged, only create new measure funcs for modified text
-        for (text, content_size, text_flags) in text_query.iter_mut() {
-            if text.is_changed() || text_flags.needs_new_measure_func {
+        for (text, content_size, text_flags) in &mut text_query {
+            if text.is_changed() || text_flags.needs_new_measure_func || content_size.is_added() {
                 create_text_measure(&fonts, scale_factor, text, content_size, text_flags);
             }
         }
@@ -136,7 +142,7 @@ pub fn measure_text_system(
         // scale factor changed, create new measure funcs for all text
         *last_scale_factor = scale_factor;
 
-        for (text, content_size, text_flags) in text_query.iter_mut() {
+        for (text, content_size, text_flags) in &mut text_query {
             create_text_measure(&fonts, scale_factor, text, content_size, text_flags);
         }
     }
@@ -149,11 +155,11 @@ fn queue_text(
     text_pipeline: &mut TextPipeline,
     font_atlas_warning: &mut FontAtlasWarning,
     font_atlas_sets: &mut FontAtlasSets,
-    texture_atlases: &mut Assets<TextureAtlas>,
+    texture_atlases: &mut Assets<TextureAtlasLayout>,
     textures: &mut Assets<Image>,
     text_settings: &TextSettings,
-    scale_factor: f64,
-    inverse_scale_factor: f64,
+    scale_factor: f32,
+    inverse_scale_factor: f32,
     text: &Text,
     node: Ref<Node>,
     mut text_flags: Mut<TextFlags>,
@@ -166,14 +172,17 @@ fn queue_text(
             Vec2::splat(f32::INFINITY)
         } else {
             // `scale_factor` is already multiplied by `UiScale`
-            node.physical_size(scale_factor, 1.)
+            Vec2::new(
+                node.unrounded_size.x * scale_factor,
+                node.unrounded_size.y * scale_factor,
+            )
         };
 
         match text_pipeline.queue_text(
             fonts,
             &text.sections,
             scale_factor,
-            text.alignment,
+            text.justify,
             text.linebreak_behavior,
             physical_node_size,
             font_atlas_sets,
@@ -207,17 +216,17 @@ fn queue_text(
 /// ## World Resources
 ///
 /// [`ResMut<Assets<Image>>`](Assets<Image>) -- This system only adds new [`Image`] assets.
-/// It does not modify or observe existing ones.
+/// It does not modify or observe existing ones. The exception is when adding new glyphs to a [`bevy_text::FontAtlas`].
 #[allow(clippy::too_many_arguments)]
 pub fn text_system(
     mut textures: ResMut<Assets<Image>>,
-    mut last_scale_factor: Local<f64>,
+    mut last_scale_factor: Local<f32>,
     fonts: Res<Assets<Font>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     text_settings: Res<TextSettings>,
     mut font_atlas_warning: ResMut<FontAtlasWarning>,
     ui_scale: Res<UiScale>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut font_atlas_sets: ResMut<FontAtlasSets>,
     mut text_pipeline: ResMut<TextPipeline>,
     mut text_query: Query<(Ref<Node>, &Text, &mut TextLayoutInfo, &mut TextFlags)>,
@@ -232,7 +241,7 @@ pub fn text_system(
     let inverse_scale_factor = scale_factor.recip();
     if *last_scale_factor == scale_factor {
         // Scale factor unchanged, only recompute text for modified text nodes
-        for (node, text, text_layout_info, text_flags) in text_query.iter_mut() {
+        for (node, text, text_layout_info, text_flags) in &mut text_query {
             if node.is_changed() || text_flags.needs_recompute {
                 queue_text(
                     &fonts,
@@ -255,7 +264,7 @@ pub fn text_system(
         // Scale factor changed, recompute text for all text nodes
         *last_scale_factor = scale_factor;
 
-        for (node, text, text_layout_info, text_flags) in text_query.iter_mut() {
+        for (node, text, text_layout_info, text_flags) in &mut text_query {
             queue_text(
                 &fonts,
                 &mut text_pipeline,

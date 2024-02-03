@@ -76,14 +76,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let text_style = TextStyle {
         font: asset_server.load("fonts/FiraSans-Bold.ttf"),
         font_size: 24.0,
-        color: Color::WHITE,
+        ..default()
     };
 
     commands.spawn(Camera2dBundle::default());
     commands.spawn(NodeBundle {
         style: Style {
+            width: Val::Percent(100.),
+            height: Val::Percent(100.),
             flex_direction: FlexDirection::Column,
-            flex_basis: Val::Percent(100.),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::SpaceEvenly,
             ..Default::default()
@@ -95,7 +96,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             text: Text::from_section(
                 "Use the panel on the right to change the Display and Visibility properties for the respective nodes of the panel on the left",                
                 text_style.clone(),
-            ).with_alignment(TextAlignment::Center),
+            ).with_justify(JustifyText::Center),
             style: Style {
                 margin: UiRect::bottom(Val::Px(10.)),
                 ..Default::default()
@@ -150,21 +151,21 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 let text_style = TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                     font_size: 20.0,
-                    color: Color::WHITE,
+                    ..default()
                 };
 
                 builder.spawn(TextBundle {
                     text: Text::from_section(
-                        "Display::None\nVisibility::Hidden\nVisbility::Inherited",
+                        "Display::None\nVisibility::Hidden\nVisibility::Inherited",
                         TextStyle { color: HIDDEN_COLOR, ..text_style.clone() }
-                        ).with_alignment(TextAlignment::Center),
+                        ).with_justify(JustifyText::Center),
                     ..Default::default()
                     });
                     builder.spawn(TextBundle {
                         text: Text::from_section(
                             "-\n-\n-",
                             TextStyle { color: Color::DARK_GRAY, ..text_style.clone() }
-                            ).with_alignment(TextAlignment::Center),
+                            ).with_justify(JustifyText::Center),
                         ..Default::default()
                         });
                     builder.spawn(TextBundle::from_section(
@@ -189,9 +190,6 @@ fn spawn_left_panel(builder: &mut ChildBuilder, palette: &[Color; 4]) -> Vec<Ent
         .with_children(|parent| {
             parent
                 .spawn(NodeBundle {
-                    style: Style {
-                        ..Default::default()
-                    },
                     background_color: BackgroundColor(Color::BLACK),
                     ..Default::default()
                 })
@@ -427,7 +425,7 @@ where
                     format!("{}::{:?}", Target::<T>::NAME, T::default()),
                     text_style,
                 )
-                .with_text_alignment(TextAlignment::Center),
+                .with_text_justify(JustifyText::Center),
             );
         });
 }

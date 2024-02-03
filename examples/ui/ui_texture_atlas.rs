@@ -20,28 +20,27 @@ fn main() {
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     // Camera
     commands.spawn(Camera2dBundle::default());
 
     let text_style = TextStyle {
-        color: Color::ANTIQUE_WHITE,
         font_size: 20.,
         ..default()
     };
 
     let texture_handle = asset_server.load("textures/rpg/chars/gabe/gabe-idle-run.png");
-    let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 7, 1, None, None);
+    let texture_atlas = TextureAtlasLayout::from_grid(Vec2::new(24.0, 24.0), 7, 1, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
     // root node
     commands
         .spawn(NodeBundle {
             style: Style {
-                flex_direction: FlexDirection::Column,
                 width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 row_gap: Val::Px(text_style.font_size * 2.),
@@ -56,8 +55,8 @@ fn setup(
                     height: Val::Px(256.),
                     ..default()
                 },
-                texture_atlas: texture_atlas_handle,
-                texture_atlas_image: UiTextureAtlasImage::default(),
+                texture_atlas: texture_atlas_handle.into(),
+                image: UiImage::new(texture_handle),
                 ..default()
             });
             parent.spawn(TextBundle::from_sections([
@@ -75,8 +74,8 @@ fn setup(
 }
 
 fn increment_atlas_index(
-    mut atlas_images: Query<&mut UiTextureAtlasImage>,
-    keyboard: Res<Input<KeyCode>>,
+    mut atlas_images: Query<&mut TextureAtlas>,
+    keyboard: Res<ButtonInput<KeyCode>>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
         for mut atlas_image in &mut atlas_images {
