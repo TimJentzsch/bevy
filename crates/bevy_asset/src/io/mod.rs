@@ -18,6 +18,7 @@ pub mod wasm;
 
 mod source;
 
+use async_fs::File;
 pub use futures_lite::AsyncWriteExt;
 pub use source::*;
 
@@ -111,6 +112,8 @@ impl Reader for Box<dyn Reader + '_> {
         (**self).read_to_end(buf)
     }
 }
+
+impl Reader for File {}
 
 /// A future that returns a value or an [`AssetReaderError`]
 pub trait AssetReaderFuture:
